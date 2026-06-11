@@ -1,0 +1,196 @@
+{
+    "name": "82dd0765-cc2e-4fdf-9755-cba450c05c8b",
+    "id": "/providers/Microsoft.Flow/flows/82dd0765-cc2e-4fdf-9755-cba450c05c8b",
+    "type": "Microsoft.Flow/flows",
+    "properties": {
+        "apiId": "/providers/Microsoft.PowerApps/apis/shared_logicflows",
+        "displayName": "Cuando se crea un archivo -> Copiar archivo,Enviar una notificación...",
+        "definition": {
+            "metadata": {
+                "workflowEntityId": null,
+                "processAdvisorMetadata": null,
+                "flowChargedByPaygo": null,
+                "flowclientsuspensionreason": "None",
+                "flowclientsuspensiontime": null,
+                "flowclientsuspensionreasondetails": null,
+                "creator": {
+                    "id": "5dcf060a-c760-4b6b-9856-bd662be27379",
+                    "type": "User",
+                    "tenantId": "b5d78927-25d0-44a9-8370-d86e57c7ba96"
+                },
+                "provisioningMethod": "FromDefinition",
+                "failureAlertSubscription": true,
+                "clientLastModifiedTime": "2026-06-11T22:17:09.5073409Z",
+                "connectionKeySavedTimeKey": "2026-06-11T22:17:09.5073409Z",
+                "creationSource": "Portal",
+                "modifiedSources": "Portal"
+            },
+            "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+            "contentVersion": "1.0.0.0",
+            "parameters": {
+                "$authentication": {
+                    "defaultValue": {},
+                    "type": "SecureObject"
+                },
+                "$connections": {
+                    "defaultValue": {},
+                    "type": "Object"
+                }
+            },
+            "triggers": {
+                "Cuando_se_crea_un_archivo": {
+                    "recurrence": {
+                        "frequency": "Minute",
+                        "interval": 1
+                    },
+                    "evaluatedRecurrence": {
+                        "frequency": "Minute",
+                        "interval": 1
+                    },
+                    "metadata": {
+                        "b!WuI4Xh4AakOt4JosE6VD-qTugWGNXHhBothQPheWB4P5TCmp4FaERKeEqEpwpQIv.01EMDO7BHINPQL4YWPG5GKXVXF7LFRT4FS": "/Datos_Input"
+                    },
+                    "type": "OpenApiConnection",
+                    "inputs": {
+                        "parameters": {
+                            "folderId": "b!WuI4Xh4AakOt4JosE6VD-qTugWGNXHhBothQPheWB4P5TCmp4FaERKeEqEpwpQIv.01EMDO7BHINPQL4YWPG5GKXVXF7LFRT4FS"
+                        },
+                        "host": {
+                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                            "connectionName": "shared_onedriveforbusiness",
+                            "operationId": "OnNewFileV2"
+                        },
+                        "authentication": "@parameters('$authentication')"
+                    }
+                }
+            },
+            "actions": {
+                "Obtener_contenido_de_archivo": {
+                    "runAfter": {},
+                    "type": "OpenApiConnection",
+                    "inputs": {
+                        "parameters": {
+                            "id": "@triggerOutputs()?['headers/x-ms-file-id']",
+                            "inferContentType": true
+                        },
+                        "host": {
+                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                            "connectionName": "shared_onedriveforbusiness",
+                            "operationId": "GetFileContent"
+                        },
+                        "authentication": "@parameters('$authentication')"
+                    }
+                },
+                "Redactar": {
+                    "runAfter": {
+                        "Obtener_contenido_de_archivo": [
+                            "Succeeded"
+                        ]
+                    },
+                    "type": "Compose",
+                    "inputs": "@first(split(body('Obtener_contenido_de_archivo'), decodeUriComponent('%0D%0A')))"
+                },
+                "Condición": {
+                    "actions": {
+                        "Copiar_archivo": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                                "parameters": {
+                                    "id": "@triggerOutputs()?['headers/x-ms-file-id']",
+                                    "destination": "/Datos_Procesados/test.csv",
+                                    "overwrite": true
+                                },
+                                "host": {
+                                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                                    "connectionName": "shared_onedriveforbusiness",
+                                    "operationId": "CopyDriveFile"
+                                },
+                                "authentication": "@parameters('$authentication')"
+                            }
+                        },
+                        "Enviar_correo_electrónico_(V2)_1": {
+                            "runAfter": {
+                                "Copiar_archivo": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                                "parameters": {
+                                    "emailMessage/To": "diana.fuentealba.s@gmail.com",
+                                    "emailMessage/Subject": "El csv esta perfecto",
+                                    "emailMessage/Body": "<p class=\"editor-paragraph\">Todo ok con el archivo<br><br>@{outputs('Redactar')}</p>",
+                                    "emailMessage/Importance": "Normal"
+                                },
+                                "host": {
+                                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365",
+                                    "connectionName": "shared_office365",
+                                    "operationId": "SendEmailV2"
+                                },
+                                "authentication": "@parameters('$authentication')"
+                            }
+                        }
+                    },
+                    "runAfter": {
+                        "Redactar": [
+                            "Succeeded"
+                        ]
+                    },
+                    "else": {
+                        "actions": {
+                            "Enviar_correo_electrónico_(V2)": {
+                                "type": "OpenApiConnection",
+                                "inputs": {
+                                    "parameters": {
+                                        "emailMessage/To": "diana.fuentealba.s@gmail.com",
+                                        "emailMessage/Subject": "El CSV tiene errores",
+                                        "emailMessage/Body": "<p class=\"editor-paragraph\">Revisar encabezados.</p><br><p class=\"editor-paragraph\">@{outputs('Redactar')}</p><br><p class=\"editor-paragraph\">Encabezados esperados<br><br>SKU,Producto,Precio Unitario,Stock</p>",
+                                        "emailMessage/Importance": "Normal"
+                                    },
+                                    "host": {
+                                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365",
+                                        "connectionName": "shared_office365",
+                                        "operationId": "SendEmailV2"
+                                    },
+                                    "authentication": "@parameters('$authentication')"
+                                }
+                            }
+                        }
+                    },
+                    "expression": {
+                        "and": [
+                            {
+                                "equals": [
+                                    "@outputs('Redactar')",
+                                    "SKU,Producto,Precio Unitario,Stock"
+                                ]
+                            }
+                        ]
+                    },
+                    "type": "If"
+                }
+            },
+            "outputs": {}
+        },
+        "connectionReferences": {
+            "shared_onedriveforbusiness": {
+                "connectionName": "shared-onedriveforbu-636e111a-81f0-4b2b-a220-d73eb34812a0",
+                "source": "Embedded",
+                "id": "/providers/Microsoft.PowerApps/apis/shared_onedriveforbusiness",
+                "tier": "NotSpecified",
+                "apiName": "onedriveforbusiness",
+                "isProcessSimpleApiReferenceConversionAlreadyDone": false
+            },
+            "shared_office365": {
+                "connectionName": "shared-office365-971485c2-95d9-45fd-9afa-6208172e2ad9",
+                "source": "Embedded",
+                "id": "/providers/Microsoft.PowerApps/apis/shared_office365",
+                "tier": "NotSpecified",
+                "apiName": "office365",
+                "isProcessSimpleApiReferenceConversionAlreadyDone": false
+            }
+        },
+        "flowFailureAlertSubscribed": false,
+        "isManaged": false
+    }
+}
